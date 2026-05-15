@@ -1624,9 +1624,8 @@ const FIREBASE_CONFIG = {
 
 <script>
 /* ── State ───────────────────────────────────── */
-// links → 개인 로컬 저장
-let links   = JSON.parse(localStorage.getItem('wd_links') || '[]');
-// todos, events, courses, members → Firebase 실시간 공유
+// 모든 데이터 → Firebase 실시간 공유
+let links   = [];
 let todos   = [];
 let events  = [];
 let courses = [];
@@ -1654,10 +1653,11 @@ const COURSE_COLORS = [
   { bar: '#888780', light: '#f0efe9', text: '#444441' },
 ];
 
-/* ── Persist (로컬 전용) ──────────────────────── */
-const saveLinks = () => localStorage.setItem('wd_links', JSON.stringify(links));
-
 /* ── Firebase 저장 ────────────────────────────── */
+function saveLinks() {
+  if (!db) { localStorage.setItem('wd_links', JSON.stringify(links)); return; }
+  db.ref('links').set(links.length ? links.map(l => ({ ...l })) : []);
+}
 function saveTodos() {
   if (!db) { localStorage.setItem('wd_todos', JSON.stringify(todos)); return; }
   db.ref('todos').set(todos.length ? todos.map(t => ({ ...t })) : []);
@@ -1679,11 +1679,12 @@ function saveMembers() {
 function setupFirebaseListeners() {
   if (!db) {
     console.warn('Firebase 미설정 — 로컬 모드로 동작합니다.');
+    links   = JSON.parse(localStorage.getItem('wd_links')   || '[]');
     todos   = JSON.parse(localStorage.getItem('wd_todos')   || '[]');
     events  = JSON.parse(localStorage.getItem('wd_events')  || '[]');
     courses = JSON.parse(localStorage.getItem('wd_courses') || '[]');
     members = JSON.parse(localStorage.getItem('wd_members') || '[]');
-    renderTodos(); renderEvents(); renderCourses(); renderCal(); renderMembers();
+    renderLinks(); renderTodos(); renderEvents(); renderCourses(); renderCal(); renderMembers();
     return;
   }
   db.ref('.info/connected').on('value', snap => {
@@ -1695,6 +1696,12 @@ function setupFirebaseListeners() {
       badge.textContent = '● 오프라인';
       badge.style.color = '#E24B4A';
     }
+  });
+
+  db.ref('links').on('value', snap => {
+    const val = snap.val();
+    links = val ? (Array.isArray(val) ? val : Object.values(val)).filter(Boolean) : [];
+    renderLinks();
   });
 
   db.ref('todos').on('value', snap => {
@@ -1731,7 +1738,6 @@ function init() {
   calMonth = now.getMonth();
 
   updateHeader();
-  renderLinks();
   buildColorPicker();
   renderCal();
   updateProgress();
